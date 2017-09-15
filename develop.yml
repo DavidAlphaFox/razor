@@ -1,0 +1,109 @@
+- hosts: localhost
+  gather_facts: no
+
+  vars:
+    PROJECT: razor
+    ROOT: "{{ playbook_dir }}"
+    DEVELOP: "{{ ROOT }}/develop"
+    PGDATA: "{{ DEVELOP }}/pgdata"
+    SUPERVISORD: "{{ ROOT }}/supervisord.conf"
+
+  tasks:
+
+  - name: epgsql
+    tags:
+    - start
+    - reset
+    block:
+    - git:
+        repo: 'git://github.com/epgsql/epgsql.git'
+        dest: "{{ ROOT }}/lib/epgsql"
+        version: '3.3.0'
+        depth: 1
+    - make:
+        chdir: "{{ ROOT }}"
+        target: all
+
+  - name: supervisord
+    tags:
+    - start
+    - reset
+    block:
+    - file:
+        path: "{{ DEVELOP }}/log"
+        state: directory
+
+    - supervisord:
+        config: "{{ SUPERVISORD }}"
+        state: present
+
+    - register: supervisord
+      command: supervisorctl -c "{{ SUPERVISORD }}" update
+      changed_when: "supervisord.stdout != ''"
+
+  - name: postgres
+    tags:
+    - start
+    - reset
+
+    block:
+    - name: pgdata
+      block:
+      - register: pgdata
+        stat:
+          path: "{{ PGDATA }}"
+
+      - when: not pgdata.stat.exists
+        command: initdb -U "{{ PROJECT }}" "{{ PGDATA }}"
+
+    - supervisorctl:
+        config: "{{ SUPERVISORD }}"
+        name: postgres
+        state: started
+
+    - register: psql
+      command: psql -l -U "{{ PROJECT }}" -h "{{ PGDATA }}"
+      until: psql.rc == 0
+      retries: 5
+      delay: 1
+      changed_when: false
+
+  - name: ensure db dropped
+    tags:
+    - reset
+    postgresql_db:
+      name: "{{ PROJECT }}"
+      login_host: "{{ PGDATA }}"
+      login_user: "{{ PROJECT }}"
+      state: absent
+
+  - name: ensure db created
+    tags:
+    - start
+    - reset
+    postgresql_db:
+      name: "{{ PROJECT }}"
+      login_host: "{{ PGDATA }}"
+      login_user: "{{ PROJECT }}"
+      state: present
+
+  - name: ensure supervisord stopped
+    tags:
+    - stop
+    - clean
+    block:
+    - register: log
+      stat:
+        path: "{{ DEVELOP }}/log"
+
+    - when: log.stat.exists
+      supervisord:
+        config: "{{ SUPERVISORD }}"
+        state: absent
+
+  - name: ensure develop directory not exist
+    tags:
+    - clean
+    file:
+      path: "{{ DEVELOP }}"
+      state: absent

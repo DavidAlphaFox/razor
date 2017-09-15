@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+cd $(dirname $(dirname $(readlink -f "${BASH_SOURCE[0]}")))
+
+ct_run -cover cover.spec -dir ./test -logdir ./logs -pa ebin -env ERL_LIBS "lib" "$@"

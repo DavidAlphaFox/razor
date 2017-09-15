@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+cd $(dirname $(dirname $(readlink -f "${BASH_SOURCE[0]}")))
+
+case "$1" in
+start|stop|reset|clean)
+  ansible-playbook develop.yml -t "$@"
+  ;;
+*)
+  exit 1
+  ;;
+esac

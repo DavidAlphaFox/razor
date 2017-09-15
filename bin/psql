@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+cd $(dirname $(dirname $(readlink -f "${BASH_SOURCE[0]}")))
+
+psql -h "$(pwd)/develop/pgdata" -U razor

@@ -1,0 +1,5 @@
+develop/
+lib/
+logs/
+*.beam
+*~
